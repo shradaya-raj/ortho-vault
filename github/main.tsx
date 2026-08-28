@@ -49,8 +49,9 @@ function SecurePortal() {
       getAssetUrl('buildings', controller.signal),
       getAssetUrl('local_governments', controller.signal),
       getAssetUrl('river_corridor', controller.signal),
-    ]).then(([image_url, buildings_kml_url, districts_kml_url, river_buffer_kml_url]) => {
-      setSecuredOrtho({ ...rasuwaFlood, image_url, buildings_kml_url, districts_kml_url, river_buffer_kml_url });
+      getAssetUrl('river_centerline', controller.signal),
+    ]).then(([image_url, buildings_kml_url, districts_kml_url, river_buffer_kml_url, river_centerline_kml_url]) => {
+      setSecuredOrtho({ ...rasuwaFlood, image_url, buildings_kml_url, districts_kml_url, river_buffer_kml_url, river_centerline_kml_url });
     }).catch((requestError) => {
       if (requestError.name !== 'AbortError') setError(true);
     });

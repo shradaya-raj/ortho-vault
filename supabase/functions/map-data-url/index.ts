@@ -12,7 +12,8 @@ const ASSETS = {
   ortho: 'Rasuwa-Flood-Ortho-COG.tif',
   buildings: 'Flood_afftected_Buildings.kml',
   local_governments: 'GaPaNaPa.kml',
-  river_corridor: '1km-River-Boundary.kml',
+  river_corridor: 'Updated-1km-River-Boundary.kml',
+  river_centerline: 'Trishuli-River.kml',
 } as const;
 
 type AssetName = keyof typeof ASSETS;
