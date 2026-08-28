@@ -116,16 +116,15 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       if (ortho.districts_kml_url) {
         const districts = await loadKml(ortho.districts_kml_url);
         if (disposed) return;
-        const outline = L.geoJSON(districts, { style: { color: '#071b2b', weight: 6, opacity: 0.9, fillOpacity: 0 }, interactive: false });
         const line = L.geoJSON(districts, {
-          style: { color: '#00e5ff', weight: 3, opacity: 1, fillOpacity: 0 },
+          style: { color: '#7b3fa1', weight: 1.25, opacity: 0.95, fillOpacity: 0 },
           onEachFeature(feature, layer) {
             const properties = feature.properties ?? {};
             const name = properties.GaPa_NaPa || properties.DISTRICT || '';
-            if (name) layer.bindTooltip(String(name), { permanent: true, direction: 'center', className: 'district-label' });
+            if (name) layer.bindTooltip(String(name), { sticky: true, direction: 'top', className: 'district-label' });
           },
         });
-        setOverlay('districts', L.layerGroup([outline, line]));
+        setOverlay('districts', line);
       }
 
       if (ortho.river_buffer_kml_url) {
