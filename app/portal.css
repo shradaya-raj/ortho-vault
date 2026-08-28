@@ -9,3 +9,8 @@
 .mobile-panel-toggle{display:none}
 @media(min-width:901px){.map-frame>.details{position:absolute;top:12px;right:12px;bottom:12px;z-index:700;width:320px;overflow-y:auto;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px #14211d28}.map-frame.details-hidden>.details{display:none}.desktop-panel-toggle{display:grid;place-items:center;width:42px;height:42px;min-height:42px;padding:0;border-radius:50%;font-size:20px;line-height:1;transition:right .2s ease,transform .2s ease}.desktop-panel-toggle.panel-visible{right:344px}}
 @media(max-width:900px){.desktop-panel-toggle{display:none}.mobile-panel-toggle{position:absolute;top:14px;right:14px;z-index:650;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #cbd6cf;border-radius:50%;background:rgba(255,255,255,.96);box-shadow:0 3px 12px #263c3028;color:#1c6c50;font-size:20px;font-weight:750;cursor:pointer}}
+
+/* Map controls stay together in the top-right corner. */
+.basemap-switch{top:14px;right:70px;bottom:auto;left:auto}
+@media(min-width:901px){.map-frame:not(.details-hidden) .basemap-switch{right:398px}}
+@media(max-width:600px){.basemap-switch{top:14px;right:66px;bottom:auto;left:auto}.basemap-switch button{padding:7px 8px}}
