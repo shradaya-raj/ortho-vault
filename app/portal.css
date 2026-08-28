@@ -102,3 +102,32 @@
   .source-row strong{font-size:13px}
   .source-row span{font-size:12px}
 }
+
+/* Larger, clearer typography for desktop and laptop displays. */
+@media(min-width:901px){
+  .topbar{height:98px}
+  .public-brand{margin-right:0;padding:10px 15px;border-left:4px solid var(--green);border-radius:8px;background:#e8f2ec;color:#145b42;font:600 25px/1.1 Georgia,serif;box-shadow:0 2px 10px #244f3920}
+  .view-only{font-size:11px}
+  .header-actions .share{height:44px;padding:0 19px;font-size:14px}
+  .map-frame>.details{width:360px;padding:25px}
+  .map-frame:not(.details-hidden) .basemap-switch{right:438px}
+  .details-head{font-size:11px}
+  .details-head+.location{margin-top:24px;font-size:13px}
+  .stats{gap:22px;margin:27px 0}
+  .stats small,.details-footer small{font-size:10px}
+  .stats strong{font-size:13px}
+  .details h3{font-size:14px;margin:22px 0 12px}
+  .layer-row{grid-template-columns:42px minmax(0,1fr) 34px;gap:12px;min-height:58px;padding:9px 0}
+  .layer-preview,.layer-preview.river{width:42px;height:38px}
+  .layer-row strong{font-size:12px}
+  .layer-row small{font-size:10.5px}
+  .layer-row i{width:34px;height:20px}
+  .layer-row i:after{width:14px;height:14px}
+  .layer-row input:checked+i:after{left:17px}
+  .source-row{gap:4px;padding-left:12px}
+  .source-row strong{font-size:12px}
+  .source-row span{font-size:11px}
+  .basemap-switch button{min-height:40px;padding:8px 14px;font-size:12px}
+  .coordinates{font-size:11px}
+  .leaflet-tooltip,.leaflet-popup-content{font-size:13px}
+}
