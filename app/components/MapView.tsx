@@ -17,7 +17,16 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
     let disposed = false;
     let map: import('leaflet').Map | undefined;
 
-    Promise.all([import('leaflet'), import('proj4'), import('@tmcw/togeojson'), import('leaflet.markercluster')]).then(async ([L, proj4Module, toGeoJSON]) => {
+    (async () => {
+      const [L, proj4Module, toGeoJSON] = await Promise.all([
+        import('leaflet'),
+        import('proj4'),
+        import('@tmcw/togeojson'),
+      ]);
+      // MarkerCluster's browser bundle expects Leaflet on the global object.
+      // Expose it before loading the plugin so production chunk ordering is safe.
+      (globalThis as typeof globalThis & { L: typeof L }).L = L;
+      await import('leaflet.markercluster');
       if (disposed || !element.current) return;
       const proj4 = proj4Module.default;
       const bounds = L.latLngBounds([ortho.south, ortho.west], [ortho.north, ortho.east]);
@@ -105,7 +114,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         cluster.addTo(map);
       }
       L.control.zoom({ position: 'topleft' }).addTo(map);
-    });
+    })().catch((error) => console.error('Unable to initialize the map', error));
     return () => { disposed = true; map?.remove(); };
   }, [ortho, basemap, showOrtho, showBuildings, showDistricts]);
   return <div ref={element} className="leaflet-map" aria-label={`Interactive map of ${ortho.name}`} />;
