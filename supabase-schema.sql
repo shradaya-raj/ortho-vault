@@ -1,0 +1,3 @@
+create table if not exists public.orthomosaics (id uuid primary key default gen_random_uuid(),slug text not null unique,name text not null,location text not null default '',captured_at date not null,area_hectares numeric not null default 0,resolution_cm numeric not null default 0,epsg integer not null default 4326,status text not null default 'private' check(status in('published','private')),image_url text,north double precision not null,south double precision not null,east double precision not null,west double precision not null,updated_at timestamptz not null default now());
+alter table public.orthomosaics enable row level security;
+create policy "Public can read published orthomosaics" on public.orthomosaics for select using(status='published');
