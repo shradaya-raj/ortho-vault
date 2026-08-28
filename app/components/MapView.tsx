@@ -10,14 +10,14 @@ async function loadTiff(url: string) {
   return fromUrl(url, { cacheSize: 200 });
 }
 
-export default function MapView({ ortho, showOrtho, showBoundary }: { ortho: Ortho; showOrtho: boolean; showBoundary: boolean }) {
+export default function MapView({ ortho, showOrtho, showBuildings, showDistricts }: { ortho: Ortho; showOrtho: boolean; showBuildings: boolean; showDistricts: boolean }) {
   const element = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!element.current) return;
     let disposed = false;
     let map: import('leaflet').Map | undefined;
 
-    Promise.all([import('leaflet'), import('proj4')]).then(async ([L, proj4Module]) => {
+    Promise.all([import('leaflet'), import('proj4'), import('@tmcw/togeojson'), import('leaflet.markercluster')]).then(async ([L, proj4Module, toGeoJSON]) => {
       if (disposed || !element.current) return;
       const proj4 = proj4Module.default;
       const bounds = L.latLngBounds([ortho.south, ortho.west], [ortho.north, ortho.east]);
@@ -70,10 +70,39 @@ export default function MapView({ ortho, showOrtho, showBoundary }: { ortho: Ort
           L.imageOverlay(ortho.image_url, bounds, { opacity: 0.9 }).addTo(map);
         }
       }
-      if (showBoundary) L.rectangle(bounds, { color: '#e1a83f', weight: 2, fill: false }).addTo(map);
+      const loadKml = async (url: string) => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`KML request failed: ${response.status}`);
+        return toGeoJSON.kml(new DOMParser().parseFromString(await response.text(), 'text/xml'));
+      };
+
+      if (showDistricts && ortho.districts_kml_url) {
+        const districts = await loadKml(ortho.districts_kml_url);
+        L.geoJSON(districts, {
+          style: { color: '#246c86', weight: 1.5, fillColor: '#5aa7bf', fillOpacity: 0.08 },
+          onEachFeature(feature, layer) {
+            const properties = feature.properties ?? {};
+            const name = properties.GaPa_NaPa || properties.DISTRICT || '';
+            if (name) layer.bindTooltip(String(name), { permanent: true, direction: 'center', className: 'district-label' });
+          },
+        }).addTo(map);
+      }
+
+      if (showBuildings && ortho.buildings_kml_url) {
+        const buildings = await loadKml(ortho.buildings_kml_url);
+        const cluster = L.markerClusterGroup({ maxClusterRadius: 42, showCoverageOnHover: false, spiderfyOnMaxZoom: true });
+        L.geoJSON(buildings, {
+          pointToLayer(feature, latlng) {
+            const icon = L.divIcon({ className: 'building-marker', html: '<span aria-hidden="true">▰</span>', iconSize: [20, 20], iconAnchor: [10, 10] });
+            return L.marker(latlng, { icon, title: String(feature.properties?.Remarks ?? 'Flood affected building') });
+          },
+          onEachFeature(feature, layer) { layer.bindTooltip(String(feature.properties?.Remarks ?? 'Flood affected building')); },
+        }).eachLayer((layer) => cluster.addLayer(layer));
+        cluster.addTo(map);
+      }
       L.control.zoom({ position: 'topleft' }).addTo(map);
     });
     return () => { disposed = true; map?.remove(); };
-  }, [ortho, showOrtho, showBoundary]);
+  }, [ortho, showOrtho, showBuildings, showDistricts]);
   return <div ref={element} className="leaflet-map" aria-label={`Interactive map of ${ortho.name}`} />;
 }
