@@ -131,7 +131,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         const riverBuffer = await loadKml(ortho.river_buffer_kml_url);
         if (disposed) return;
         setOverlay('river', L.geoJSON(riverBuffer, {
-          style: { color: '#0057d9', weight: 2.5, opacity: 1, fillColor: '#18a8ff', fillOpacity: 0.18 },
+          style: { color: '#d97706', weight: 1.75, opacity: 1, dashArray: '7 4', fillOpacity: 0 },
         }));
       }
 
