@@ -92,7 +92,11 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       if (showDistricts && ortho.districts_kml_url) {
         const districts = await loadKml(ortho.districts_kml_url);
         L.geoJSON(districts, {
-          style: { color: '#246c86', weight: 1.5, fillColor: '#5aa7bf', fillOpacity: 0.08 },
+          style: { color: '#071b2b', weight: 6, opacity: 0.9, fillOpacity: 0 },
+          interactive: false,
+        }).addTo(map);
+        L.geoJSON(districts, {
+          style: { color: '#00e5ff', weight: 3, opacity: 1, fillColor: '#00e5ff', fillOpacity: 0.05 },
           onEachFeature(feature, layer) {
             const properties = feature.properties ?? {};
             const name = properties.GaPa_NaPa || properties.DISTRICT || '';
