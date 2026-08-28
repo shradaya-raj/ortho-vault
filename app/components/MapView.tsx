@@ -149,9 +149,12 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         L.geoJSON(buildings, {
           pointToLayer(feature, latlng) {
             const icon = L.divIcon({ className: 'building-marker', html: '<span aria-hidden="true">▰</span>', iconSize: [20, 20], iconAnchor: [10, 10] });
-            return L.marker(latlng, { icon, title: String(feature.properties?.Remarks ?? 'Flood affected building') });
+            return L.marker(latlng, { icon, title: 'Possible flood affected building' });
           },
-          onEachFeature(feature, layer) { layer.bindTooltip(String(feature.properties?.Remarks ?? 'Flood affected building')); },
+          onEachFeature(_feature, layer) {
+            layer.bindTooltip('Possible flood affected building');
+            layer.bindPopup('Possible flood affected building');
+          },
         }).eachLayer((layer) => cluster.addLayer(layer));
         setOverlay('buildings', cluster);
       }
