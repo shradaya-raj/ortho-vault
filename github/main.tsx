@@ -8,7 +8,7 @@ import '../app/portal.css';
 const rasuwaFlood: Ortho = {
   id: '1',
   slug: 'rasuwa-flood-ortho',
-  name: 'Rasuwa Flood Orthomosaic',
+  name: 'Rasuwa Flood Impact Data Portal',
   location: 'Rasuwa, Nepal',
   captured_at: '2026-08-24',
   area_hectares: 1677.1,

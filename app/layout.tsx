@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
-  title: 'OrthoVault — Shared aerial survey maps',
-  description: 'Explore and share orthomosaic survey maps in a focused WebGIS portal.',
-  openGraph: { title: 'OrthoVault — Shared aerial survey maps', description: 'Explore and share orthomosaic survey maps in a focused WebGIS portal.', images: ['/og.png'] },
-  twitter: { card: 'summary_large_image', title: 'OrthoVault — Shared aerial survey maps', description: 'Explore and share orthomosaic survey maps in a focused WebGIS portal.', images: ['/og.png'] },
+  title: 'Rasuwa Flood Impact Data Portal',
+  description: 'Explore drone imagery and mapped flood-impact information for Rasuwa.',
+  openGraph: { title: 'Rasuwa Flood Impact Data Portal', description: 'Explore drone imagery and mapped flood-impact information for Rasuwa.', images: ['/og.png'] },
+  twitter: { card: 'summary_large_image', title: 'Rasuwa Flood Impact Data Portal', description: 'Explore drone imagery and mapped flood-impact information for Rasuwa.', images: ['/og.png'] },
 };
 
 export default function RootLayout({
