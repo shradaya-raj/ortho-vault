@@ -29,6 +29,13 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
   currentState.current = { basemap, showOrtho, showBuildings, showDistricts, showRiver };
 
   useEffect(() => {
+    if (!element.current) return;
+    const observer = new ResizeObserver(() => mapRef.current?.invalidateSize({ pan: false }));
+    observer.observe(element.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     const map = mapRef.current, L = leafletRef.current;
     if (!map || !L) return;
     if (baseLayerRef.current) map.removeLayer(baseLayerRef.current);
