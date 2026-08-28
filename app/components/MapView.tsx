@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { Ortho } from '../lib/orthos';
 
 type BaseMap = 'osm' | 'satellite';
-type OverlayKey = 'ortho' | 'buildings' | 'districts';
+type OverlayKey = 'ortho' | 'buildings' | 'districts' | 'river';
 type OverlayLayers = Partial<Record<OverlayKey, import('leaflet').Layer>>;
 const tiffCache = new Map<string, ReturnType<typeof loadTiff>>();
 
@@ -19,14 +19,14 @@ function makeBaseLayer(L: typeof import('leaflet'), basemap: BaseMap) {
     : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 20 });
 }
 
-export default function MapView({ ortho, basemap, showOrtho, showBuildings, showDistricts }: { ortho: Ortho; basemap: BaseMap; showOrtho: boolean; showBuildings: boolean; showDistricts: boolean }) {
+export default function MapView({ ortho, basemap, showOrtho, showBuildings, showDistricts, showRiver }: { ortho: Ortho; basemap: BaseMap; showOrtho: boolean; showBuildings: boolean; showDistricts: boolean; showRiver: boolean }) {
   const element = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import('leaflet').Map | null>(null);
   const leafletRef = useRef<typeof import('leaflet') | null>(null);
   const baseLayerRef = useRef<import('leaflet').TileLayer | null>(null);
   const overlaysRef = useRef<OverlayLayers>({});
-  const currentState = useRef({ basemap, showOrtho, showBuildings, showDistricts });
-  currentState.current = { basemap, showOrtho, showBuildings, showDistricts };
+  const currentState = useRef({ basemap, showOrtho, showBuildings, showDistricts, showRiver });
+  currentState.current = { basemap, showOrtho, showBuildings, showDistricts, showRiver };
 
   useEffect(() => {
     const map = mapRef.current, L = leafletRef.current;
@@ -39,14 +39,14 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const desired: Record<OverlayKey, boolean> = { ortho: showOrtho, buildings: showBuildings, districts: showDistricts };
+    const desired: Record<OverlayKey, boolean> = { ortho: showOrtho, buildings: showBuildings, districts: showDistricts, river: showRiver };
     (Object.keys(desired) as OverlayKey[]).forEach((key) => {
       const layer = overlaysRef.current[key];
       if (!layer) return;
       if (desired[key] && !map.hasLayer(layer)) layer.addTo(map);
       if (!desired[key] && map.hasLayer(layer)) map.removeLayer(layer);
     });
-  }, [showOrtho, showBuildings, showDistricts]);
+  }, [showOrtho, showBuildings, showDistricts, showRiver]);
 
   useEffect(() => {
     if (!element.current) return;
@@ -66,7 +66,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
 
       const setOverlay = (key: OverlayKey, layer: import('leaflet').Layer) => {
         overlaysRef.current[key] = layer;
-        const visible = key === 'ortho' ? currentState.current.showOrtho : key === 'buildings' ? currentState.current.showBuildings : currentState.current.showDistricts;
+        const visible = key === 'ortho' ? currentState.current.showOrtho : key === 'buildings' ? currentState.current.showBuildings : key === 'districts' ? currentState.current.showDistricts : currentState.current.showRiver;
         if (visible && !disposed) layer.addTo(map);
       };
 
@@ -126,6 +126,14 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
           },
         });
         setOverlay('districts', L.layerGroup([outline, line]));
+      }
+
+      if (ortho.river_buffer_kml_url) {
+        const riverBuffer = await loadKml(ortho.river_buffer_kml_url);
+        if (disposed) return;
+        setOverlay('river', L.geoJSON(riverBuffer, {
+          style: { color: '#0057d9', weight: 2.5, opacity: 1, fillColor: '#18a8ff', fillOpacity: 0.18 },
+        }));
       }
 
       if (ortho.buildings_kml_url) {

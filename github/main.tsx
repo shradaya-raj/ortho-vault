@@ -18,6 +18,7 @@ const rasuwaFlood: Ortho = {
   image_url: 'https://tjjoksmzymtvlnbggkgc.supabase.co/storage/v1/object/public/Flood-Data-Paid-Version/Rasuwa-Flood-Ortho-COG.tif',
   buildings_kml_url: 'https://tjjoksmzymtvlnbggkgc.supabase.co/storage/v1/object/public/Flood-Data-Paid-Version/Flood_afftected_Buildings.kml',
   districts_kml_url: 'https://tjjoksmzymtvlnbggkgc.supabase.co/storage/v1/object/public/Flood-Data-Paid-Version/GaPaNaPa.kml',
+  river_buffer_kml_url: 'https://tjjoksmzymtvlnbggkgc.supabase.co/storage/v1/object/public/Flood-Data-Paid-Version/1km-River-Boundary.kml',
   north: 28.26310584597464,
   south: 28.02858569455318,
   east: 85.37858278740433,
