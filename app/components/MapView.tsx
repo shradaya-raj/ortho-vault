@@ -12,6 +12,7 @@ async function loadTiff(url: string) {
 
 export default function MapView({ ortho, basemap, showOrtho, showBuildings, showDistricts }: { ortho: Ortho; basemap: 'osm' | 'satellite'; showOrtho: boolean; showBuildings: boolean; showDistricts: boolean }) {
   const element = useRef<HTMLDivElement>(null);
+  const savedView = useRef<{ center: [number, number]; zoom: number } | null>(null);
   useEffect(() => {
     if (!element.current) return;
     let disposed = false;
@@ -30,7 +31,12 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       if (disposed || !element.current) return;
       const proj4 = proj4Module.default;
       const bounds = L.latLngBounds([ortho.south, ortho.west], [ortho.north, ortho.east]);
-      map = L.map(element.current, { zoomControl: false, preferCanvas: true }).fitBounds(bounds, { padding: [28, 28] });
+      map = L.map(element.current, { zoomControl: false, preferCanvas: true });
+      if (savedView.current) {
+        map.setView(savedView.current.center, savedView.current.zoom, { animate: false });
+      } else {
+        map.fitBounds(bounds, { padding: [28, 28], animate: false });
+      }
       if (basemap === 'satellite') {
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri — Sources: Esri, Maxar, Earthstar Geographics, and contributors', maxZoom: 20 }).addTo(map);
       } else {
@@ -119,7 +125,14 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       }
       L.control.zoom({ position: 'topleft' }).addTo(map);
     })().catch((error) => console.error('Unable to initialize the map', error));
-    return () => { disposed = true; map?.remove(); };
+    return () => {
+      disposed = true;
+      if (map) {
+        const center = map.getCenter();
+        savedView.current = { center: [center.lat, center.lng], zoom: map.getZoom() };
+        map.remove();
+      }
+    };
   }, [ortho, basemap, showOrtho, showBuildings, showDistricts]);
   return <div ref={element} className="leaflet-map" aria-label={`Interactive map of ${ortho.name}`} />;
 }
