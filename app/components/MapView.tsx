@@ -10,7 +10,7 @@ async function loadTiff(url: string) {
   return fromUrl(url, { cacheSize: 200 });
 }
 
-export default function MapView({ ortho, showOrtho, showBuildings, showDistricts }: { ortho: Ortho; showOrtho: boolean; showBuildings: boolean; showDistricts: boolean }) {
+export default function MapView({ ortho, basemap, showOrtho, showBuildings, showDistricts }: { ortho: Ortho; basemap: 'osm' | 'satellite'; showOrtho: boolean; showBuildings: boolean; showDistricts: boolean }) {
   const element = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!element.current) return;
@@ -22,7 +22,11 @@ export default function MapView({ ortho, showOrtho, showBuildings, showDistricts
       const proj4 = proj4Module.default;
       const bounds = L.latLngBounds([ortho.south, ortho.west], [ortho.north, ortho.east]);
       map = L.map(element.current, { zoomControl: false, preferCanvas: true }).fitBounds(bounds, { padding: [28, 28] });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 20 }).addTo(map);
+      if (basemap === 'satellite') {
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri — Sources: Esri, Maxar, Earthstar Geographics, and contributors', maxZoom: 20 }).addTo(map);
+      } else {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 20 }).addTo(map);
+      }
 
       if (showOrtho && ortho.image_url) {
         if (/\.tiff?(?:$|\?)/i.test(ortho.image_url)) {
@@ -103,6 +107,6 @@ export default function MapView({ ortho, showOrtho, showBuildings, showDistricts
       L.control.zoom({ position: 'topleft' }).addTo(map);
     });
     return () => { disposed = true; map?.remove(); };
-  }, [ortho, showOrtho, showBuildings, showDistricts]);
+  }, [ortho, basemap, showOrtho, showBuildings, showDistricts]);
   return <div ref={element} className="leaflet-map" aria-label={`Interactive map of ${ortho.name}`} />;
 }
