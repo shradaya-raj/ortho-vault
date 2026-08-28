@@ -59,7 +59,7 @@ function SecurePortal() {
   }, []);
 
   if (error) return <main className="empty-state"><h1>Map data is temporarily unavailable</h1><p>Please refresh the page to try again.</p></main>;
-  if (!securedOrtho) return <main className="empty-state"><h1>Opening secure map</h1><p>Preparing protected map layers…</p></main>;
+  if (!securedOrtho) return <main className="empty-state"><p>Loading data...</p></main>;
   return <Portal orthos={[securedOrtho]} initialSlug={securedOrtho.slug} publicView />;
 }
 
