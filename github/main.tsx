@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { createClient } from '@supabase/supabase-js';
 import Portal from '../app/components/Portal';
 import type { Ortho } from '../app/lib/orthos';
 import '../app/globals.css';
@@ -23,38 +24,38 @@ const rasuwaFlood: Ortho = {
   updated_at: '2026-08-28T12:00:00Z',
 };
 
-const SIGNING_ENDPOINT = 'https://tjjoksmzymtvlnbggkgc.supabase.co/functions/v1/map-data-url';
-
-async function getAssetUrl(asset: string, signal: AbortSignal) {
-  const response = await fetch(SIGNING_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ asset }),
-    signal,
-  });
-  if (!response.ok) throw new Error(`Map service returned ${response.status}`);
-  const data = await response.json() as { url?: string };
-  if (!data.url) throw new Error('Map service did not return a URL');
-  return data.url;
-}
+const SUPABASE_URL = 'https://tjjoksmzymtvlnbggkgc.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const TILE_ENDPOINT = `${SUPABASE_URL}/functions/v1/map-tile`;
 
 function SecurePortal() {
   const [securedOrtho, setSecuredOrtho] = useState<Ortho | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    const controller = new AbortController();
-    Promise.all([
-      getAssetUrl('ortho', controller.signal),
-      getAssetUrl('buildings', controller.signal),
-      getAssetUrl('local_governments', controller.signal),
-      getAssetUrl('river_corridor', controller.signal),
-    ]).then(([image_url, buildings_kml_url, districts_kml_url, river_buffer_kml_url]) => {
-      setSecuredOrtho({ ...rasuwaFlood, image_url, buildings_kml_url, districts_kml_url, river_buffer_kml_url });
-    }).catch((requestError) => {
-      if (requestError.name !== 'AbortError') setError(true);
+    let active = true;
+    if (!SUPABASE_PUBLISHABLE_KEY) {
+      setError(true);
+      return;
+    }
+    const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
     });
-    return () => controller.abort();
+    (async () => {
+      let { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        const result = await supabase.auth.signInAnonymously();
+        if (result.error) throw result.error;
+        session = result.data.session;
+      }
+      if (!session) throw new Error('Unable to create map session');
+      if (active) setSecuredOrtho({
+        ...rasuwaFlood,
+        protected_tile_url: TILE_ENDPOINT,
+        protected_access_token: session.access_token,
+      });
+    })().catch(() => active && setError(true));
+    return () => { active = false; };
   }, []);
 
   if (error) return <main className="empty-state"><h1>Map data is temporarily unavailable</h1><p>Please refresh the page to try again.</p></main>;

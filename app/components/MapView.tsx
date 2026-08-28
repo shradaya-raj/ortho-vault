@@ -10,7 +10,7 @@ const tiffCache = new Map<string, ReturnType<typeof loadTiff>>();
 
 async function loadTiff(url: string) {
   const { fromUrl } = await import('geotiff');
-  return fromUrl(url, { cacheSize: 200 });
+  return fromUrl(url, { cacheSize: 200 } as Parameters<typeof fromUrl>[1]);
 }
 
 function makeBaseLayer(L: typeof import('leaflet'), basemap: BaseMap) {
@@ -77,7 +77,95 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         if (visible && !disposed) layer.addTo(map);
       };
 
-      if (ortho.image_url) {
+      const protectedTileUrl = ortho.protected_tile_url;
+      const protectedToken = ortho.protected_access_token;
+      const fetchProtectedTile = async (layer: string, z: number, x: number, y: number, signal?: AbortSignal) => {
+        if (!protectedTileUrl || !protectedToken) throw new Error('Protected map session is unavailable');
+        const response = await fetch(`${protectedTileUrl}/${layer}/${z}/${x}/${y}`, {
+          headers: { Authorization: `Bearer ${protectedToken}` },
+          signal,
+        });
+        if (!response.ok) throw new Error(`Tile request failed: ${response.status}`);
+        return response;
+      };
+
+      if (protectedTileUrl && protectedToken) {
+        const ProtectedRaster = L.GridLayer.extend({
+          createTile(coords: import('leaflet').Coords, done: (error?: Error | null, tile?: HTMLElement) => void) {
+            const image = document.createElement('img');
+            image.alt = '';
+            image.width = 256;
+            image.height = 256;
+            const controller = new AbortController();
+            fetchProtectedTile('drone', coords.z, coords.x, coords.y, controller.signal)
+              .then((response) => response.blob())
+              .then((blob) => {
+                const objectUrl = URL.createObjectURL(blob);
+                image.onload = () => { URL.revokeObjectURL(objectUrl); done(null, image); };
+                image.onerror = () => { URL.revokeObjectURL(objectUrl); done(new Error('Unable to display imagery tile'), image); };
+                image.src = objectUrl;
+              })
+              .catch((error: Error) => done(error, image));
+            return image;
+          },
+        });
+        const ProtectedRasterLayer = ProtectedRaster as unknown as new (options: import('leaflet').GridLayerOptions) => import('leaflet').GridLayer;
+        setOverlay('ortho', new ProtectedRasterLayer({ tileSize: 256, opacity: 0.92, bounds, minZoom: 10, maxZoom: 20 }));
+
+        const createProtectedVectorLayer = (layerName: string, options: import('leaflet').GeoJSONOptions, clustered = false) => {
+          const container = clustered
+            ? L.markerClusterGroup({ maxClusterRadius: 42, showCoverageOnHover: false, spiderfyOnMaxZoom: true })
+            : L.layerGroup();
+          let requests: AbortController[] = [];
+          const refresh = async () => {
+            requests.forEach((request) => request.abort());
+            requests = [];
+            container.clearLayers();
+            const zoom = Math.max(8, Math.min(20, map.getZoom()));
+            const pixelBounds = map.getPixelBounds();
+            if (!pixelBounds.min || !pixelBounds.max) return;
+            const min = pixelBounds.min.divideBy(256).floor();
+            const max = pixelBounds.max.divideBy(256).floor();
+            const seen = new Set<string>();
+            for (let x = min.x; x <= max.x; x += 1) for (let y = min.y; y <= max.y; y += 1) {
+              const controller = new AbortController();
+              requests.push(controller);
+              fetchProtectedTile(layerName, zoom, x, y, controller.signal).then((response) => response.json()).then((value: unknown) => {
+                const geojson = value as { features?: import('geojson').Feature[] };
+                const uniqueFeatures = (geojson.features ?? []).filter((feature: unknown) => {
+                  const key = JSON.stringify(feature);
+                  if (seen.has(key)) return false;
+                  seen.add(key);
+                  return true;
+                });
+                L.geoJSON({ type: 'FeatureCollection', features: uniqueFeatures } as import('geojson').FeatureCollection, options).eachLayer((featureLayer) => container.addLayer(featureLayer));
+              }).catch((error: Error) => { if (error.name !== 'AbortError') console.warn(`Unable to load ${layerName} tile`, error); });
+            }
+          };
+          map.on('moveend zoomend', refresh);
+          container.on('add', refresh);
+          container.on('remove', () => requests.forEach((request) => request.abort()));
+          return container;
+        };
+
+        setOverlay('districts', createProtectedVectorLayer('local-governments', {
+          style: { color: '#7b3fa1', weight: 1.25, opacity: 0.95, fillOpacity: 0 },
+          onEachFeature(feature, layer) { const name = feature.properties?.label; if (name) layer.bindTooltip(String(name), { sticky: true, direction: 'top', className: 'district-label' }); },
+        }));
+        setOverlay('river', createProtectedVectorLayer('river-corridor', {
+          style: { color: '#d97706', weight: 1.75, opacity: 1, dashArray: '7 4', fillOpacity: 0 },
+        }));
+        const buildingOptions: import('leaflet').GeoJSONOptions = {
+          pointToLayer(_feature, latlng) {
+            const icon = L.divIcon({ className: 'building-marker', html: '<span aria-hidden="true">▰</span>', iconSize: [20, 20], iconAnchor: [10, 10] });
+            return L.marker(latlng, { icon, title: 'Possible flood affected' });
+          },
+          onEachFeature(_feature, layer) { layer.bindTooltip('Possible flood affected'); layer.bindPopup('Possible flood affected'); },
+        };
+        setOverlay('buildings', createProtectedVectorLayer('buildings', buildingOptions, true));
+      }
+
+      if (!protectedTileUrl && ortho.image_url) {
         if (/\.tiff?(?:$|\?)/i.test(ortho.image_url)) {
           const sourceProjection = `+proj=utm +zone=${ortho.epsg - 32600} +datum=WGS84 +units=m +no_defs`;
           const tiffPromise = tiffCache.get(ortho.image_url) ?? loadTiff(ortho.image_url);
@@ -110,7 +198,8 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
               return canvas;
             },
           });
-          setOverlay('ortho', new RasterGrid({ tileSize: 256, opacity: 0.92, bounds, minZoom: 9, maxZoom: 20 }));
+          const RasterGridLayer = RasterGrid as unknown as new (options: import('leaflet').GridLayerOptions) => import('leaflet').GridLayer;
+          setOverlay('ortho', new RasterGridLayer({ tileSize: 256, opacity: 0.92, bounds, minZoom: 9, maxZoom: 20 }));
         } else setOverlay('ortho', L.imageOverlay(ortho.image_url, bounds, { opacity: 0.9 }));
       }
 
@@ -120,7 +209,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         return toGeoJSON.kml(new DOMParser().parseFromString(await response.text(), 'text/xml'));
       };
 
-      if (ortho.districts_kml_url) {
+      if (!protectedTileUrl && ortho.districts_kml_url) {
         const districts = await loadKml(ortho.districts_kml_url);
         if (disposed) return;
         const line = L.geoJSON(districts, {
@@ -134,7 +223,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         setOverlay('districts', line);
       }
 
-      if (ortho.river_buffer_kml_url) {
+      if (!protectedTileUrl && ortho.river_buffer_kml_url) {
         const riverBuffer = await loadKml(ortho.river_buffer_kml_url);
         if (disposed) return;
         setOverlay('river', L.geoJSON(riverBuffer, {
@@ -142,7 +231,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         }));
       }
 
-      if (ortho.buildings_kml_url) {
+      if (!protectedTileUrl && ortho.buildings_kml_url) {
         const buildings = await loadKml(ortho.buildings_kml_url);
         if (disposed) return;
         const cluster = L.markerClusterGroup({ maxClusterRadius: 42, showCoverageOnHover: false, spiderfyOnMaxZoom: true });

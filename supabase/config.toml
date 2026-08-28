@@ -2,3 +2,6 @@ project_id = "ortho-vault"
 
 [functions.map-data-url]
 verify_jwt = false
+
+[functions.map-tile]
+verify_jwt = false
