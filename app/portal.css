@@ -14,3 +14,13 @@
 .basemap-switch{top:14px;right:70px;bottom:auto;left:auto}
 @media(min-width:901px){.map-frame:not(.details-hidden) .basemap-switch{right:398px}}
 @media(max-width:600px){.basemap-switch{top:14px;right:66px;bottom:auto;left:auto}.basemap-switch button{padding:7px 8px}}
+
+/* Smooth, non-resizing desktop panel interaction. */
+.basemap-switch{transition:right .3s cubic-bezier(.22,.8,.3,1)}
+@media(min-width:901px){
+  .map-frame>.details{display:flex;opacity:1;visibility:visible;transform:translateX(0);transition:opacity .22s ease,transform .3s cubic-bezier(.22,.8,.3,1),visibility 0s}
+  .map-frame.details-hidden>.details{display:flex;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(24px);transition:opacity .2s ease,transform .3s cubic-bezier(.22,.8,.3,1),visibility 0s .3s}
+  .desktop-panel-toggle{z-index:750;transition:right .3s cubic-bezier(.22,.8,.3,1),transform .2s ease,box-shadow .2s ease}
+  .desktop-panel-toggle.panel-visible{right:24px}
+  .desktop-panel-toggle:hover{transform:translateX(2px);box-shadow:0 5px 16px #263c3038}
+}
