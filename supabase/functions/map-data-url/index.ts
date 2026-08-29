@@ -18,6 +18,30 @@ const ASSETS = {
 
 type AssetName = keyof typeof ASSETS;
 
+async function recordPortalVisit(
+  supabase: ReturnType<typeof createClient>,
+  request: Request,
+) {
+  const userAgent = request.headers.get('user-agent') ?? '';
+  const forwardedIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  const ip = request.headers.get('cf-connecting-ip') ?? forwardedIp ?? 'unknown';
+  const day = new Date().toISOString().slice(0, 10);
+  const bytes = new TextEncoder().encode(`${day}|${ip}|${userAgent}`);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const visitorDayHash = Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+  const deviceType = /mobile|android|iphone|ipad/i.test(userAgent)
+    ? 'mobile'
+    : userAgent ? 'desktop' : 'other';
+
+  const { error } = await supabase.from('portal_visit_events').insert({
+    visitor_day_hash: visitorDayHash,
+    device_type: deviceType,
+  });
+  if (error) console.error('Unable to record portal visit', error);
+}
+
 function corsHeaders(origin: string | null) {
   const allowedOrigin = origin && ALLOWED_ORIGINS.has(origin)
     ? origin
@@ -54,6 +78,7 @@ Deno.serve(async (request) => {
     const supabase = createClient(supabaseUrl, serverKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    if (asset === 'ortho') await recordPortalVisit(supabase, request);
     const { data, error } = await supabase.storage
       .from(BUCKET)
       .createSignedUrl(ASSETS[asset], URL_LIFETIME_SECONDS);
