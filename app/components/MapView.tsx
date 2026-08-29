@@ -92,6 +92,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       let measurePoints: import('leaflet').LatLng[] = [];
       let measurePreview: import('leaflet').Polyline | import('leaflet').Polygon | null = null;
       let measureDraftTooltip: import('leaflet').Tooltip | null = null;
+      let measureDraftVertices: import('leaflet').CircleMarker[] = [];
       const measurementLayers = L.layerGroup().addTo(map);
       const measurementProjection = `+proj=utm +zone=${ortho.epsg - 32600} +datum=WGS84 +units=m +no_defs`;
       const measureButtons = new Map<string, HTMLButtonElement>();
@@ -113,6 +114,8 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         measurePreview = null;
         if (measureDraftTooltip) map.removeLayer(measureDraftTooltip);
         measureDraftTooltip = null;
+        measureDraftVertices.forEach((vertex) => map.removeLayer(vertex));
+        measureDraftVertices = [];
         map.getContainer().classList.toggle('is-measuring', Boolean(mode));
         measureButtons.forEach((button, key) => button.classList.toggle('active', key === mode));
         if (mode) map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
@@ -121,7 +124,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       const uniqueMeasurePoints = () => measurePoints.filter((point, index, points) => index === 0 || map.distance(points[index - 1], point) > 0.05);
       const totalDistance = (points: import('leaflet').LatLng[]) => points.slice(1).reduce((total, point, index) => total + map.distance(points[index], point), 0);
       const formatDistance = (distance: number) => distance >= 1000 ? `${(distance / 1000).toFixed(3)} km` : `${distance.toFixed(2)} m`;
-      const attachMeasurementResult = (layer: import('leaflet').Path, content: string, location: import('leaflet').LatLng) => {
+      const attachMeasurementResult = (layer: import('leaflet').Path, content: string, location: import('leaflet').LatLng, relatedLayers: import('leaflet').Layer[] = []) => {
         layer.bindTooltip(`<button type="button" class="measurement-delete" aria-label="Remove this measurement">×</button>${content}`, {
           permanent: true,
           interactive: true,
@@ -134,6 +137,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             event.preventDefault();
             event.stopPropagation();
             measurementLayers.removeLayer(layer);
+            relatedLayers.forEach((relatedLayer) => measurementLayers.removeLayer(relatedLayer));
           });
         });
       };
@@ -146,7 +150,10 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         if (measureMode === 'line' && points.length >= 2) {
           const distance = totalDistance(points);
           const line = L.polyline(points, { color: '#d6007f', weight: 3.5, opacity: 1 }).addTo(measurementLayers);
-          attachMeasurementResult(line, `<strong>Distance</strong><br>${formatDistance(distance)}`, points[points.length - 1]);
+          const vertices = [...measureDraftVertices];
+          vertices.forEach((vertex) => measurementLayers.addLayer(vertex));
+          measureDraftVertices = [];
+          attachMeasurementResult(line, `<strong>Distance</strong><br>${formatDistance(distance)}`, points[points.length - 1], vertices);
         }
         if (measureMode === 'area' && points.length >= 3) {
           const squareKilometres = projectedArea(points) / 1_000_000;
@@ -166,19 +173,29 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
           attachMeasurementResult(point, `<strong>Coordinate</strong><br>X: ${x.toFixed(2)} m<br>Y: ${y.toFixed(2)} m<br><small>EPSG:${ortho.epsg}</small>`, event.latlng);
           return;
         }
+        const previousPoint = measurePoints[measurePoints.length - 1];
+        if (previousPoint && map.distance(previousPoint, event.latlng) <= 0.05) return;
         measurePoints.push(event.latlng);
         if (measureMode === 'line') {
           const points = uniqueMeasurePoints();
+          const vertex = L.circleMarker(event.latlng, {
+            radius: 5,
+            color: '#fff',
+            weight: 2,
+            fillColor: '#d6007f',
+            fillOpacity: 1,
+          }).addTo(map);
+          measureDraftVertices.push(vertex);
           if (measureDraftTooltip) map.removeLayer(measureDraftTooltip);
-          measureDraftTooltip = L.tooltip({
-            permanent: true,
-            direction: 'top',
-            offset: [0, -7],
-            className: 'measurement-live',
-          })
-            .setLatLng(event.latlng)
-            .setContent(`<strong>${formatDistance(totalDistance(points))}</strong><br><small>Double-click to finish</small>`)
-            .addTo(map);
+          measureDraftTooltip = points.length < 2 ? null : L.tooltip({
+              permanent: true,
+              direction: 'top',
+              offset: [0, -7],
+              className: 'measurement-live',
+            })
+              .setLatLng(event.latlng)
+              .setContent(`<strong>${formatDistance(totalDistance(points))}</strong><br><small>Double-click to finish</small>`)
+              .addTo(map);
         }
       });
 
