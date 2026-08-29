@@ -121,12 +121,55 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             updateInterval: 250,
             keepBuffer: 4,
           });
+          let rasterPreview: HTMLCanvasElement | null = null;
+          let previewFallbackTimer: ReturnType<typeof setTimeout> | undefined;
+          const clearRasterPreview = () => {
+            if (!rasterPreview) return;
+            const preview = rasterPreview;
+            rasterPreview = null;
+            preview.classList.add('is-ready');
+            setTimeout(() => preview.remove(), 260);
+          };
+          const preserveVisibleRaster = () => {
+            if (rasterPreview || !element.current || !currentState.current.showOrtho) return;
+            const container = element.current;
+            const containerRect = container.getBoundingClientRect();
+            const tiles = Array.from(container.querySelectorAll<HTMLCanvasElement>('.leaflet-tile-pane canvas.leaflet-tile-loaded'))
+              .filter((tile) => {
+                const rect = tile.getBoundingClientRect();
+                return rect.right > containerRect.left && rect.left < containerRect.right && rect.bottom > containerRect.top && rect.top < containerRect.bottom;
+              });
+            if (!tiles.length) return;
+            const scale = window.devicePixelRatio || 1;
+            const preview = document.createElement('canvas');
+            preview.width = Math.max(1, Math.round(containerRect.width * scale));
+            preview.height = Math.max(1, Math.round(containerRect.height * scale));
+            preview.style.width = `${containerRect.width}px`;
+            preview.style.height = `${containerRect.height}px`;
+            preview.className = 'raster-zoom-preview';
+            const context = preview.getContext('2d');
+            if (!context) return;
+            context.scale(scale, scale);
+            tiles.forEach((tile) => {
+              const rect = tile.getBoundingClientRect();
+              context.drawImage(tile, rect.left - containerRect.left, rect.top - containerRect.top, rect.width, rect.height);
+            });
+            container.appendChild(preview);
+            rasterPreview = preview;
+            clearTimeout(previewFallbackTimer);
+            previewFallbackTimer = setTimeout(clearRasterPreview, 20000);
+          };
           let redrawTimer: ReturnType<typeof setTimeout> | undefined;
+          map.on('zoomstart', preserveVisibleRaster);
           map.on('zoomend', () => {
             clearTimeout(redrawTimer);
             redrawTimer = setTimeout(() => {
               if (!disposed && currentState.current.showOrtho) rasterLayer.redraw();
             }, 180);
+          });
+          rasterLayer.on('load', () => {
+            clearTimeout(previewFallbackTimer);
+            clearRasterPreview();
           });
           setOverlay('ortho', rasterLayer);
         } else setOverlay('ortho', L.imageOverlay(ortho.image_url, bounds, { opacity: 0.9 }));
