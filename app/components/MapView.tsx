@@ -244,11 +244,11 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         if (disposed) return;
         const centerlineGroup = L.layerGroup();
         L.geoJSON(trisuliCenterline, {
-          style: { color: '#f4fbff', weight: 4, opacity: 0.9, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
+          style: { color: '#ffffff', weight: 5, opacity: 0.92, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
           interactive: false,
         }).addTo(centerlineGroup);
         L.geoJSON(trisuliCenterline, {
-          style: { color: '#0878b9', weight: 1.8, opacity: 1, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
+          style: { color: '#0b2f6b', weight: 2.4, opacity: 1, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
           onEachFeature(_feature, layer) {
             layer.bindTooltip('Trishuli River Centerline', { sticky: true, direction: 'top', className: 'river-label' });
           },
