@@ -135,6 +135,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       };
 
       const finishMeasurement = () => {
+        const completedMode = measureMode;
         const points = uniqueMeasurePoints();
         if (measurePreview) map.removeLayer(measurePreview);
         measurePreview = null;
@@ -148,7 +149,9 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
           const polygon = L.polygon(points, { color: '#d6007f', weight: 3, opacity: 1, fillColor: '#f34faf', fillOpacity: 0.14 }).addTo(measurementLayers);
           attachMeasurementResult(polygon, `<strong>Area</strong><br>${squareKilometres.toFixed(4)} km²`, polygon.getBounds().getCenter());
         }
-        setMeasureMode(null);
+        // Finish only the current geometry. Keep the selected measurement tool
+        // active so another line or area can be started immediately.
+        setMeasureMode(completedMode);
       };
 
       map.on('click', (event: import('leaflet').LeafletMouseEvent) => {
