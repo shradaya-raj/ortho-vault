@@ -117,6 +117,22 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
 
       const uniqueMeasurePoints = () => measurePoints.filter((point, index, points) => index === 0 || map.distance(points[index - 1], point) > 0.05);
       const totalDistance = (points: import('leaflet').LatLng[]) => points.slice(1).reduce((total, point, index) => total + map.distance(points[index], point), 0);
+      const attachMeasurementResult = (layer: import('leaflet').Path, content: string, location: import('leaflet').LatLng) => {
+        layer.bindTooltip(`<button type="button" class="measurement-delete" aria-label="Remove this measurement">×</button>${content}`, {
+          permanent: true,
+          interactive: true,
+          direction: 'top',
+          className: 'measurement-result',
+        }).openTooltip(location);
+        queueMicrotask(() => {
+          const closeButton = layer.getTooltip()?.getElement()?.querySelector<HTMLButtonElement>('.measurement-delete');
+          closeButton?.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            measurementLayers.removeLayer(layer);
+          });
+        });
+      };
 
       const finishMeasurement = () => {
         const points = uniqueMeasurePoints();
@@ -125,12 +141,12 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         if (measureMode === 'line' && points.length >= 2) {
           const distance = totalDistance(points);
           const line = L.polyline(points, { color: '#f05a28', weight: 3, opacity: 1 }).addTo(measurementLayers);
-          line.bindTooltip(`<strong>Distance</strong><br>${distance >= 1000 ? `${(distance / 1000).toFixed(3)} km` : `${distance.toFixed(2)} m`}`, { permanent: true, direction: 'top', className: 'measurement-result' }).openTooltip(points[points.length - 1]);
+          attachMeasurementResult(line, `<strong>Distance</strong><br>${distance >= 1000 ? `${(distance / 1000).toFixed(3)} km` : `${distance.toFixed(2)} m`}`, points[points.length - 1]);
         }
         if (measureMode === 'area' && points.length >= 3) {
           const squareKilometres = projectedArea(points) / 1_000_000;
           const polygon = L.polygon(points, { color: '#8b3fc7', weight: 2.5, opacity: 1, fillColor: '#b878df', fillOpacity: 0.18 }).addTo(measurementLayers);
-          polygon.bindTooltip(`<strong>Area</strong><br>${squareKilometres.toFixed(4)} km²`, { permanent: true, direction: 'center', className: 'measurement-result' }).openTooltip(polygon.getBounds().getCenter());
+          attachMeasurementResult(polygon, `<strong>Area</strong><br>${squareKilometres.toFixed(4)} km²`, polygon.getBounds().getCenter());
         }
         setMeasureMode(null);
       };
@@ -139,9 +155,8 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         if (!measureMode) return;
         if (measureMode === 'point') {
           const [x, y] = proj4('EPSG:4326', measurementProjection, [event.latlng.lng, event.latlng.lat]);
-          L.circleMarker(event.latlng, { radius: 6, color: '#fff', weight: 2, fillColor: '#0b2f6b', fillOpacity: 1 })
-            .bindTooltip(`<strong>Coordinate</strong><br>X: ${x.toFixed(2)} m<br>Y: ${y.toFixed(2)} m<br><small>EPSG:${ortho.epsg}</small>`, { permanent: true, direction: 'top', className: 'measurement-result' })
-            .addTo(measurementLayers);
+          const point = L.circleMarker(event.latlng, { radius: 6, color: '#fff', weight: 2, fillColor: '#0b2f6b', fillOpacity: 1 }).addTo(measurementLayers);
+          attachMeasurementResult(point, `<strong>Coordinate</strong><br>X: ${x.toFixed(2)} m<br>Y: ${y.toFixed(2)} m<br><small>EPSG:${ortho.epsg}</small>`, event.latlng);
           return;
         }
         measurePoints.push(event.latlng);
