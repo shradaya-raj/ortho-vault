@@ -121,6 +121,16 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             updateInterval: 250,
             keepBuffer: 4,
           });
+          const loadingIndicator = document.createElement('div');
+          loadingIndicator.className = 'drone-loading-indicator';
+          loadingIndicator.setAttribute('role', 'status');
+          loadingIndicator.setAttribute('aria-live', 'polite');
+          loadingIndicator.innerHTML = '<span aria-hidden="true"></span>Drone imagery loading…';
+          element.current.appendChild(loadingIndicator);
+          const showLoadingIndicator = () => loadingIndicator.classList.add('is-visible');
+          const hideLoadingIndicator = () => loadingIndicator.classList.remove('is-visible');
+          rasterLayer.on('loading', showLoadingIndicator);
+          rasterLayer.on('remove', hideLoadingIndicator);
           let rasterPreview: HTMLCanvasElement | null = null;
           let previewFallbackTimer: ReturnType<typeof setTimeout> | undefined;
           const clearRasterPreview = () => {
@@ -168,6 +178,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             }, 180);
           });
           rasterLayer.on('load', () => {
+            hideLoadingIndicator();
             clearTimeout(previewFallbackTimer);
             clearRasterPreview();
           });
