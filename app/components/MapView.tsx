@@ -85,6 +85,112 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       element.current.addEventListener('wheel', mapGestureHandler, { passive: false, capture: true });
       baseLayerRef.current = makeBaseLayer(L, currentState.current.basemap).addTo(map);
 
+      L.control.scale({ position: 'bottomleft', metric: true, imperial: false, maxWidth: 120 }).addTo(map);
+
+      type MeasureMode = 'point' | 'line' | 'area' | null;
+      let measureMode: MeasureMode = null;
+      let measurePoints: import('leaflet').LatLng[] = [];
+      let measurePreview: import('leaflet').Polyline | import('leaflet').Polygon | null = null;
+      const measurementLayers = L.layerGroup().addTo(map);
+      const measurementProjection = `+proj=utm +zone=${ortho.epsg - 32600} +datum=WGS84 +units=m +no_defs`;
+      const measureButtons = new Map<string, HTMLButtonElement>();
+
+      const projectedArea = (points: import('leaflet').LatLng[]) => {
+        const coordinates = points.map((point) => proj4('EPSG:4326', measurementProjection, [point.lng, point.lat]));
+        let twiceArea = 0;
+        coordinates.forEach(([x1, y1], index) => {
+          const [x2, y2] = coordinates[(index + 1) % coordinates.length];
+          twiceArea += x1 * y2 - x2 * y1;
+        });
+        return Math.abs(twiceArea) / 2;
+      };
+
+      const setMeasureMode = (mode: MeasureMode) => {
+        measureMode = mode;
+        measurePoints = [];
+        if (measurePreview) map.removeLayer(measurePreview);
+        measurePreview = null;
+        map.getContainer().classList.toggle('is-measuring', Boolean(mode));
+        measureButtons.forEach((button, key) => button.classList.toggle('active', key === mode));
+        if (mode) map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
+      };
+
+      const uniqueMeasurePoints = () => measurePoints.filter((point, index, points) => index === 0 || map.distance(points[index - 1], point) > 0.05);
+      const totalDistance = (points: import('leaflet').LatLng[]) => points.slice(1).reduce((total, point, index) => total + map.distance(points[index], point), 0);
+
+      const finishMeasurement = () => {
+        const points = uniqueMeasurePoints();
+        if (measurePreview) map.removeLayer(measurePreview);
+        measurePreview = null;
+        if (measureMode === 'line' && points.length >= 2) {
+          const distance = totalDistance(points);
+          const line = L.polyline(points, { color: '#f05a28', weight: 3, opacity: 1 }).addTo(measurementLayers);
+          line.bindTooltip(`<strong>Distance</strong><br>${distance >= 1000 ? `${(distance / 1000).toFixed(3)} km` : `${distance.toFixed(2)} m`}`, { permanent: true, direction: 'top', className: 'measurement-result' }).openTooltip(points[points.length - 1]);
+        }
+        if (measureMode === 'area' && points.length >= 3) {
+          const squareKilometres = projectedArea(points) / 1_000_000;
+          const polygon = L.polygon(points, { color: '#8b3fc7', weight: 2.5, opacity: 1, fillColor: '#b878df', fillOpacity: 0.18 }).addTo(measurementLayers);
+          polygon.bindTooltip(`<strong>Area</strong><br>${squareKilometres.toFixed(4)} km²`, { permanent: true, direction: 'center', className: 'measurement-result' }).openTooltip(polygon.getBounds().getCenter());
+        }
+        setMeasureMode(null);
+      };
+
+      map.on('click', (event: import('leaflet').LeafletMouseEvent) => {
+        if (!measureMode) return;
+        if (measureMode === 'point') {
+          const [x, y] = proj4('EPSG:4326', measurementProjection, [event.latlng.lng, event.latlng.lat]);
+          L.circleMarker(event.latlng, { radius: 6, color: '#fff', weight: 2, fillColor: '#0b2f6b', fillOpacity: 1 })
+            .bindTooltip(`<strong>Coordinate</strong><br>X: ${x.toFixed(2)} m<br>Y: ${y.toFixed(2)} m<br><small>EPSG:${ortho.epsg}</small>`, { permanent: true, direction: 'top', className: 'measurement-result' })
+            .addTo(measurementLayers);
+          return;
+        }
+        measurePoints.push(event.latlng);
+      });
+
+      map.on('mousemove', (event: import('leaflet').LeafletMouseEvent) => {
+        if ((measureMode !== 'line' && measureMode !== 'area') || !measurePoints.length) return;
+        if (measurePreview) map.removeLayer(measurePreview);
+        const previewPoints = [...measurePoints, event.latlng];
+        measurePreview = measureMode === 'line'
+          ? L.polyline(previewPoints, { color: '#f05a28', weight: 2.5, dashArray: '7 5' }).addTo(map)
+          : L.polygon(previewPoints, { color: '#8b3fc7', weight: 2, dashArray: '7 5', fillColor: '#b878df', fillOpacity: 0.12 }).addTo(map);
+      });
+      map.on('dblclick', (event: import('leaflet').LeafletMouseEvent) => {
+        if (measureMode !== 'line' && measureMode !== 'area') return;
+        event.originalEvent.preventDefault();
+        finishMeasurement();
+      });
+
+      const measurementControl = new L.Control({ position: 'topleft' });
+      measurementControl.onAdd = () => {
+        const container = L.DomUtil.create('div', 'leaflet-bar measurement-toolbar');
+        const tools = [
+          { mode: 'point', symbol: '⊙', label: 'Measure coordinate' },
+          { mode: 'line', symbol: '╱', label: 'Measure distance' },
+          { mode: 'area', symbol: '△', label: 'Measure area' },
+          { mode: 'clear', symbol: '×', label: 'Clear measurements' },
+        ];
+        tools.forEach((tool) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.innerHTML = `<span aria-hidden="true">${tool.symbol}</span>`;
+          button.title = tool.label;
+          button.setAttribute('aria-label', tool.label);
+          button.addEventListener('click', () => {
+            if (tool.mode === 'clear') {
+              measurementLayers.clearLayers();
+              setMeasureMode(null);
+            } else setMeasureMode(measureMode === tool.mode ? null : tool.mode as MeasureMode);
+          });
+          measureButtons.set(tool.mode, button);
+          container.appendChild(button);
+        });
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+        return container;
+      };
+      measurementControl.addTo(map);
+
       const setOverlay = (key: OverlayKey, layer: import('leaflet').Layer) => {
         overlaysRef.current[key] = layer;
         const visible = key === 'ortho' ? currentState.current.showOrtho : key === 'buildings' ? currentState.current.showBuildings : key === 'districts' ? currentState.current.showDistricts : key === 'river' ? currentState.current.showRiver : key === 'riverCenterline' ? currentState.current.showRiverCenterline : currentState.current.showTrisuliCenterline;
