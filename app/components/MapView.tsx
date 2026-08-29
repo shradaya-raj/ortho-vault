@@ -67,7 +67,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       leafletRef.current = L;
       const proj4 = proj4Module.default;
       const bounds = L.latLngBounds([ortho.south, ortho.west], [ortho.north, ortho.east]);
-      const map = L.map(element.current, { zoomControl: false, preferCanvas: true }).fitBounds(bounds, { padding: [28, 28], animate: false });
+      const map = L.map(element.current, { zoomControl: false, preferCanvas: true, fadeAnimation: false }).fitBounds(bounds, { padding: [28, 28], animate: false });
       mapRef.current = map;
       baseLayerRef.current = makeBaseLayer(L, currentState.current.basemap).addTo(map);
 
@@ -110,7 +110,25 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
               return canvas;
             },
           });
-          setOverlay('ortho', new RasterGrid({ tileSize: 256, opacity: 0.92, bounds, minZoom: 9, maxZoom: 20 }));
+          const rasterLayer = new RasterGrid({
+            tileSize: 256,
+            opacity: 0.92,
+            bounds,
+            minZoom: 9,
+            maxZoom: 20,
+            updateWhenZooming: false,
+            updateWhenIdle: true,
+            updateInterval: 250,
+            keepBuffer: 4,
+          });
+          let redrawTimer: ReturnType<typeof setTimeout> | undefined;
+          map.on('zoomend', () => {
+            clearTimeout(redrawTimer);
+            redrawTimer = setTimeout(() => {
+              if (!disposed && currentState.current.showOrtho) rasterLayer.redraw();
+            }, 180);
+          });
+          setOverlay('ortho', rasterLayer);
         } else setOverlay('ortho', L.imageOverlay(ortho.image_url, bounds, { opacity: 0.9 }));
       }
 
