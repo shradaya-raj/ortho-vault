@@ -134,7 +134,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             if (rasterPreview || !element.current || !currentState.current.showOrtho) return;
             const container = element.current;
             const containerRect = container.getBoundingClientRect();
-            const tiles = Array.from(container.querySelectorAll<HTMLCanvasElement>('.leaflet-tile-pane canvas.leaflet-tile-loaded'))
+            const tiles = Array.from(container.querySelectorAll<HTMLCanvasElement>('.leaflet-tile-pane canvas.leaflet-tile'))
               .filter((tile) => {
                 const rect = tile.getBoundingClientRect();
                 return rect.right > containerRect.left && rect.left < containerRect.right && rect.bottom > containerRect.top && rect.top < containerRect.bottom;
