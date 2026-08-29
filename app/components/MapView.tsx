@@ -215,6 +215,8 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             if (tool.mode === 'clear') {
               measurementLayers.clearLayers();
               setMeasureMode(null);
+              button.blur();
+              requestAnimationFrame(() => map.getContainer().focus({ preventScroll: true }));
             } else setMeasureMode(measureMode === tool.mode ? null : tool.mode as MeasureMode);
           });
           measureButtons.set(tool.mode, button);
