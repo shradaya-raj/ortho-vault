@@ -14,6 +14,7 @@ const ASSETS = {
   local_governments: 'GaPaNaPa.kml',
   river_corridor: 'Updated-1km-River-Boundary.kml',
   river_centerline: 'Trishuli-River.kml',
+  trisuli_centerline: 'trisuli-centerline.kml',
 } as const;
 
 type AssetName = keyof typeof ASSETS;

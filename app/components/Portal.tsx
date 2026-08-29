@@ -29,6 +29,7 @@ export default function Portal({
     districts: true,
     river: true,
     riverCenterline: true,
+    trisuliCenterline: true,
   });
   if (!active)
     return (
@@ -138,6 +139,7 @@ export default function Portal({
               showDistricts={layers.districts}
               showRiver={layers.river}
               showRiverCenterline={layers.riverCenterline}
+              showTrisuliCenterline={layers.trisuliCenterline}
             />
             <div className="basemap-switch" role="group" aria-label="Basemap">
               <button
@@ -245,13 +247,25 @@ export default function Portal({
             />
             <Layer
               preview="river-centerline"
-              title="Trishuli River Centerline"
-              subtitle="Mapped river alignment"
+              title="Trishuli River"
+              subtitle="River extent"
               checked={layers.riverCenterline}
               onChange={() =>
                 setLayers((v) => ({
                   ...v,
                   riverCenterline: !v.riverCenterline,
+                }))
+              }
+            />
+            <Layer
+              preview="trisuli-centerline"
+              title="Trishuli River Centerline"
+              subtitle="Mapped river alignment"
+              checked={layers.trisuliCenterline}
+              onChange={() =>
+                setLayers((v) => ({
+                  ...v,
+                  trisuliCenterline: !v.trisuliCenterline,
                 }))
               }
             />

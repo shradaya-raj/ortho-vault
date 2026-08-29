@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { Ortho } from '../lib/orthos';
 
 type BaseMap = 'osm' | 'satellite';
-type OverlayKey = 'ortho' | 'buildings' | 'districts' | 'river' | 'riverCenterline';
+type OverlayKey = 'ortho' | 'buildings' | 'districts' | 'river' | 'riverCenterline' | 'trisuliCenterline';
 type OverlayLayers = Partial<Record<OverlayKey, import('leaflet').Layer>>;
 const tiffCache = new Map<string, ReturnType<typeof loadTiff>>();
 
@@ -19,14 +19,14 @@ function makeBaseLayer(L: typeof import('leaflet'), basemap: BaseMap) {
     : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 20 });
 }
 
-export default function MapView({ ortho, basemap, showOrtho, showBuildings, showDistricts, showRiver, showRiverCenterline }: { ortho: Ortho; basemap: BaseMap; showOrtho: boolean; showBuildings: boolean; showDistricts: boolean; showRiver: boolean; showRiverCenterline: boolean }) {
+export default function MapView({ ortho, basemap, showOrtho, showBuildings, showDistricts, showRiver, showRiverCenterline, showTrisuliCenterline }: { ortho: Ortho; basemap: BaseMap; showOrtho: boolean; showBuildings: boolean; showDistricts: boolean; showRiver: boolean; showRiverCenterline: boolean; showTrisuliCenterline: boolean }) {
   const element = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import('leaflet').Map | null>(null);
   const leafletRef = useRef<typeof import('leaflet') | null>(null);
   const baseLayerRef = useRef<import('leaflet').TileLayer | null>(null);
   const overlaysRef = useRef<OverlayLayers>({});
-  const currentState = useRef({ basemap, showOrtho, showBuildings, showDistricts, showRiver, showRiverCenterline });
-  currentState.current = { basemap, showOrtho, showBuildings, showDistricts, showRiver, showRiverCenterline };
+  const currentState = useRef({ basemap, showOrtho, showBuildings, showDistricts, showRiver, showRiverCenterline, showTrisuliCenterline });
+  currentState.current = { basemap, showOrtho, showBuildings, showDistricts, showRiver, showRiverCenterline, showTrisuliCenterline };
 
   useEffect(() => {
     if (!element.current) return;
@@ -46,14 +46,14 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const desired: Record<OverlayKey, boolean> = { ortho: showOrtho, buildings: showBuildings, districts: showDistricts, river: showRiver, riverCenterline: showRiverCenterline };
+    const desired: Record<OverlayKey, boolean> = { ortho: showOrtho, buildings: showBuildings, districts: showDistricts, river: showRiver, riverCenterline: showRiverCenterline, trisuliCenterline: showTrisuliCenterline };
     (Object.keys(desired) as OverlayKey[]).forEach((key) => {
       const layer = overlaysRef.current[key];
       if (!layer) return;
       if (desired[key] && !map.hasLayer(layer)) layer.addTo(map);
       if (!desired[key] && map.hasLayer(layer)) map.removeLayer(layer);
     });
-  }, [showOrtho, showBuildings, showDistricts, showRiver, showRiverCenterline]);
+  }, [showOrtho, showBuildings, showDistricts, showRiver, showRiverCenterline, showTrisuliCenterline]);
 
   useEffect(() => {
     if (!element.current) return;
@@ -87,7 +87,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
 
       const setOverlay = (key: OverlayKey, layer: import('leaflet').Layer) => {
         overlaysRef.current[key] = layer;
-        const visible = key === 'ortho' ? currentState.current.showOrtho : key === 'buildings' ? currentState.current.showBuildings : key === 'districts' ? currentState.current.showDistricts : key === 'river' ? currentState.current.showRiver : currentState.current.showRiverCenterline;
+        const visible = key === 'ortho' ? currentState.current.showOrtho : key === 'buildings' ? currentState.current.showBuildings : key === 'districts' ? currentState.current.showDistricts : key === 'river' ? currentState.current.showRiver : key === 'riverCenterline' ? currentState.current.showRiverCenterline : currentState.current.showTrisuliCenterline;
         if (visible && !disposed) layer.addTo(map);
       };
 
@@ -231,18 +231,29 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       if (ortho.river_centerline_kml_url) {
         const riverCenterline = await loadKml(ortho.river_centerline_kml_url);
         if (disposed) return;
+        setOverlay('riverCenterline', L.geoJSON(riverCenterline, {
+          style: { color: '#1479b8', weight: 2.25, opacity: 0.98, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
+          onEachFeature(_feature, layer) {
+            layer.bindTooltip('Trishuli River', { sticky: true, direction: 'top', className: 'river-label' });
+          },
+        }));
+      }
+
+      if (ortho.trisuli_centerline_kml_url) {
+        const trisuliCenterline = await loadKml(ortho.trisuli_centerline_kml_url);
+        if (disposed) return;
         const centerlineGroup = L.layerGroup();
-        L.geoJSON(riverCenterline, {
+        L.geoJSON(trisuliCenterline, {
           style: { color: '#f4fbff', weight: 4, opacity: 0.9, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
           interactive: false,
         }).addTo(centerlineGroup);
-        L.geoJSON(riverCenterline, {
+        L.geoJSON(trisuliCenterline, {
           style: { color: '#0878b9', weight: 1.8, opacity: 1, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
           onEachFeature(_feature, layer) {
             layer.bindTooltip('Trishuli River Centerline', { sticky: true, direction: 'top', className: 'river-label' });
           },
         }).addTo(centerlineGroup);
-        setOverlay('riverCenterline', centerlineGroup);
+        setOverlay('trisuliCenterline', centerlineGroup);
       }
 
       if (ortho.buildings_kml_url) {
