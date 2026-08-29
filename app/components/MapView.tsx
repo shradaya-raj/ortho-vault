@@ -185,7 +185,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         const tools = [
           { mode: 'point', symbol: '⊙', label: 'Measure coordinate' },
           { mode: 'line', symbol: '╱', label: 'Measure distance' },
-          { mode: 'area', symbol: '△', label: 'Measure area' },
+          { mode: 'area', symbol: '▭', label: 'Measure area' },
           { mode: 'clear', symbol: '×', label: 'Clear measurements' },
         ];
         tools.forEach((tool) => {
