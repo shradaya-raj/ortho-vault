@@ -140,12 +140,12 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         measurePreview = null;
         if (measureMode === 'line' && points.length >= 2) {
           const distance = totalDistance(points);
-          const line = L.polyline(points, { color: '#f05a28', weight: 3, opacity: 1 }).addTo(measurementLayers);
+          const line = L.polyline(points, { color: '#d6007f', weight: 3.5, opacity: 1 }).addTo(measurementLayers);
           attachMeasurementResult(line, `<strong>Distance</strong><br>${distance >= 1000 ? `${(distance / 1000).toFixed(3)} km` : `${distance.toFixed(2)} m`}`, points[points.length - 1]);
         }
         if (measureMode === 'area' && points.length >= 3) {
           const squareKilometres = projectedArea(points) / 1_000_000;
-          const polygon = L.polygon(points, { color: '#8b3fc7', weight: 2.5, opacity: 1, fillColor: '#b878df', fillOpacity: 0.18 }).addTo(measurementLayers);
+          const polygon = L.polygon(points, { color: '#d6007f', weight: 3, opacity: 1, fillColor: '#f34faf', fillOpacity: 0.14 }).addTo(measurementLayers);
           attachMeasurementResult(polygon, `<strong>Area</strong><br>${squareKilometres.toFixed(4)} km²`, polygon.getBounds().getCenter());
         }
         setMeasureMode(null);
@@ -155,7 +155,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         if (!measureMode) return;
         if (measureMode === 'point') {
           const [x, y] = proj4('EPSG:4326', measurementProjection, [event.latlng.lng, event.latlng.lat]);
-          const point = L.circleMarker(event.latlng, { radius: 6, color: '#fff', weight: 2, fillColor: '#0b2f6b', fillOpacity: 1 }).addTo(measurementLayers);
+          const point = L.circleMarker(event.latlng, { radius: 7, color: '#fff', weight: 2.5, fillColor: '#d6007f', fillOpacity: 1 }).addTo(measurementLayers);
           attachMeasurementResult(point, `<strong>Coordinate</strong><br>X: ${x.toFixed(2)} m<br>Y: ${y.toFixed(2)} m<br><small>EPSG:${ortho.epsg}</small>`, event.latlng);
           return;
         }
@@ -167,8 +167,8 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
         if (measurePreview) map.removeLayer(measurePreview);
         const previewPoints = [...measurePoints, event.latlng];
         measurePreview = measureMode === 'line'
-          ? L.polyline(previewPoints, { color: '#f05a28', weight: 2.5, dashArray: '7 5' }).addTo(map)
-          : L.polygon(previewPoints, { color: '#8b3fc7', weight: 2, dashArray: '7 5', fillColor: '#b878df', fillOpacity: 0.12 }).addTo(map);
+          ? L.polyline(previewPoints, { color: '#d6007f', weight: 3, dashArray: '7 5' }).addTo(map)
+          : L.polygon(previewPoints, { color: '#d6007f', weight: 2.5, dashArray: '7 5', fillColor: '#f34faf', fillOpacity: 0.1 }).addTo(map);
       });
       map.on('dblclick', (event: import('leaflet').LeafletMouseEvent) => {
         if (measureMode !== 'line' && measureMode !== 'area') return;
