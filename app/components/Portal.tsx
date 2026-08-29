@@ -245,8 +245,8 @@ export default function Portal({
             />
             <Layer
               preview="river-centerline"
-              title="Trishuli River"
-              subtitle="River centerline"
+              title="Trishuli River Centerline"
+              subtitle="Mapped river alignment"
               checked={layers.riverCenterline}
               onChange={() =>
                 setLayers((v) => ({

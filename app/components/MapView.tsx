@@ -231,12 +231,18 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       if (ortho.river_centerline_kml_url) {
         const riverCenterline = await loadKml(ortho.river_centerline_kml_url);
         if (disposed) return;
-        setOverlay('riverCenterline', L.geoJSON(riverCenterline, {
-          style: { color: '#1479b8', weight: 2.25, opacity: 0.98, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
+        const centerlineGroup = L.layerGroup();
+        L.geoJSON(riverCenterline, {
+          style: { color: '#f4fbff', weight: 4, opacity: 0.9, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
+          interactive: false,
+        }).addTo(centerlineGroup);
+        L.geoJSON(riverCenterline, {
+          style: { color: '#0878b9', weight: 1.8, opacity: 1, lineCap: 'round', lineJoin: 'round', fillOpacity: 0 },
           onEachFeature(_feature, layer) {
-            layer.bindTooltip('Trishuli River', { sticky: true, direction: 'top', className: 'river-label' });
+            layer.bindTooltip('Trishuli River Centerline', { sticky: true, direction: 'top', className: 'river-label' });
           },
-        }));
+        }).addTo(centerlineGroup);
+        setOverlay('riverCenterline', centerlineGroup);
       }
 
       if (ortho.buildings_kml_url) {
