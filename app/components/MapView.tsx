@@ -58,6 +58,8 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
   useEffect(() => {
     if (!element.current) return;
     let disposed = false;
+    let mapGestureHandler: ((event: WheelEvent) => void) | undefined;
+    let lastGestureZoom = 0;
 
     (async () => {
       const [L, proj4Module, toGeoJSON] = await Promise.all([import('leaflet'), import('proj4'), import('@tmcw/togeojson')]);
@@ -69,6 +71,18 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       const bounds = L.latLngBounds([ortho.south, ortho.west], [ortho.north, ortho.east]);
       const map = L.map(element.current, { zoomControl: false, preferCanvas: true, fadeAnimation: false }).fitBounds(bounds, { padding: [28, 28], animate: false });
       mapRef.current = map;
+      mapGestureHandler = (event: WheelEvent) => {
+        if (!event.ctrlKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const now = performance.now();
+        if (now - lastGestureZoom < 140) return;
+        lastGestureZoom = now;
+        const direction = event.deltaY < 0 ? 1 : -1;
+        const nextZoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), map.getZoom() + direction));
+        map.setZoomAround(map.mouseEventToContainerPoint(event), nextZoom);
+      };
+      element.current.addEventListener('wheel', mapGestureHandler, { passive: false, capture: true });
       baseLayerRef.current = makeBaseLayer(L, currentState.current.basemap).addTo(map);
 
       const setOverlay = (key: OverlayKey, layer: import('leaflet').Layer) => {
@@ -246,6 +260,7 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
 
     return () => {
       disposed = true;
+      if (mapGestureHandler && element.current) element.current.removeEventListener('wheel', mapGestureHandler, { capture: true });
       mapRef.current?.remove();
       mapRef.current = null; leafletRef.current = null; baseLayerRef.current = null; overlaysRef.current = {};
     };
