@@ -254,12 +254,95 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
       if (ortho.image_url) {
         if (/\.tiff?(?:$|\?)/i.test(ortho.image_url)) {
           const sourceProjection = `+proj=utm +zone=${ortho.epsg - 32600} +datum=WGS84 +units=m +no_defs`;
+          const loadingIndicator = document.createElement('div');
+          loadingIndicator.className = 'drone-loading-indicator is-visible';
+          loadingIndicator.setAttribute('role', 'status');
+          loadingIndicator.setAttribute('aria-live', 'polite');
+          loadingIndicator.innerHTML = '<span aria-hidden="true"></span>Drone imagery loading…';
+          element.current.appendChild(loadingIndicator);
+          const showLoadingIndicator = () => loadingIndicator.classList.add('is-visible');
+          const hideLoadingIndicator = () => loadingIndicator.classList.remove('is-visible');
           const tiffPromise = tiffCache.get(ortho.image_url) ?? loadTiff(ortho.image_url);
           tiffCache.set(ortho.image_url, tiffPromise);
           const tiff = await tiffPromise;
-          if (disposed) return;
+          if (disposed) { loadingIndicator.remove(); return; }
           const image = await tiff.getImage();
           const [minX, minY, maxX, maxY] = image.getBoundingBox();
+          type RasterTask = {
+            canvas: HTMLCanvasElement;
+            done: (error?: Error | null, tile?: HTMLElement) => void;
+            bbox: [number, number, number, number];
+            destinationX: number;
+            destinationY: number;
+            destinationWidth: number;
+            destinationHeight: number;
+            generation: number;
+            attempt: number;
+          };
+          let rasterGeneration = 0;
+          let rasterPaused = false;
+          let activeRasterReads = 0;
+          let rasterQueue: RasterTask[] = [];
+          let resumeRasterTimer: ReturnType<typeof setTimeout> | undefined;
+          const MAX_RASTER_READS = 4;
+
+          const processRasterQueue = () => {
+            if (rasterPaused || disposed) return;
+            while (activeRasterReads < MAX_RASTER_READS && rasterQueue.length) {
+              const task = rasterQueue.shift()!;
+              if (task.generation !== rasterGeneration) {
+                task.done(null, task.canvas);
+                continue;
+              }
+              activeRasterReads += 1;
+              tiff.readRasters({
+                bbox: task.bbox,
+                width: task.destinationWidth,
+                height: task.destinationHeight,
+                samples: [0, 1, 2, 3],
+                interleave: true,
+                resampleMethod: 'bilinear',
+              }).then((result) => {
+                if (!disposed && task.generation === rasterGeneration) {
+                  const values = result as unknown as ArrayLike<number>;
+                  const rgba = new Uint8ClampedArray(task.destinationWidth * task.destinationHeight * 4);
+                  for (let i = 0; i < rgba.length; i += 4) {
+                    rgba[i] = values[i] ?? 0;
+                    rgba[i + 1] = values[i + 1] ?? 0;
+                    rgba[i + 2] = values[i + 2] ?? 0;
+                    rgba[i + 3] = values[i + 3] ?? 255;
+                  }
+                  task.canvas.getContext('2d')?.putImageData(
+                    new ImageData(rgba, task.destinationWidth, task.destinationHeight),
+                    task.destinationX,
+                    task.destinationY,
+                  );
+                }
+                task.done(null, task.canvas);
+              }).catch((error: Error) => {
+                if (!disposed && task.generation === rasterGeneration && task.attempt < 1) {
+                  task.attempt += 1;
+                  setTimeout(() => {
+                    if (task.generation === rasterGeneration && !disposed) rasterQueue.unshift(task);
+                    else task.done(null, task.canvas);
+                    processRasterQueue();
+                  }, 650);
+                } else {
+                  console.warn('Drone imagery tile could not be rendered', error);
+                  task.done(error, task.canvas);
+                }
+              }).finally(() => {
+                activeRasterReads -= 1;
+                processRasterQueue();
+              });
+            }
+          };
+
+          const discardQueuedRasterReads = () => {
+            const staleTasks = rasterQueue;
+            rasterQueue = [];
+            staleTasks.forEach((task) => task.done(null, task.canvas));
+          };
           const RasterGrid = L.GridLayer.extend({
             createTile(coords: import('leaflet').Coords, done: (error?: Error | null, tile?: HTMLElement) => void) {
               const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
@@ -274,13 +357,18 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
               const destinationY = Math.round(((north - top) / (north - south)) * 256);
               const destinationWidth = Math.max(1, Math.round(((right - left) / (east - west)) * 256));
               const destinationHeight = Math.max(1, Math.round(((top - bottom) / (north - south)) * 256));
-              tiff.readRasters({ bbox: [left, bottom, right, top], width: destinationWidth, height: destinationHeight, samples: [0, 1, 2, 3], interleave: true, resampleMethod: 'bilinear' }).then((result) => {
-                const values = result as unknown as ArrayLike<number>;
-                const rgba = new Uint8ClampedArray(destinationWidth * destinationHeight * 4);
-                for (let i = 0; i < rgba.length; i += 4) { rgba[i] = values[i] ?? 0; rgba[i + 1] = values[i + 1] ?? 0; rgba[i + 2] = values[i + 2] ?? 0; rgba[i + 3] = values[i + 3] ?? 255; }
-                canvas.getContext('2d')?.putImageData(new ImageData(rgba, destinationWidth, destinationHeight), destinationX, destinationY);
-                done(null, canvas);
-              }).catch((error: Error) => done(error, canvas));
+              rasterQueue.push({
+                canvas,
+                done,
+                bbox: [left, bottom, right, top],
+                destinationX,
+                destinationY,
+                destinationWidth,
+                destinationHeight,
+                generation: rasterGeneration,
+                attempt: 0,
+              });
+              processRasterQueue();
               return canvas;
             },
           });
@@ -295,18 +383,8 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             updateInterval: 250,
             keepBuffer: 4,
           });
-          const loadingIndicator = document.createElement('div');
-          loadingIndicator.className = 'drone-loading-indicator';
-          loadingIndicator.setAttribute('role', 'status');
-          loadingIndicator.setAttribute('aria-live', 'polite');
-          loadingIndicator.innerHTML = '<span aria-hidden="true"></span>Drone imagery loading…';
-          element.current.appendChild(loadingIndicator);
-          const showLoadingIndicator = () => loadingIndicator.classList.add('is-visible');
-          const hideLoadingIndicator = () => loadingIndicator.classList.remove('is-visible');
           rasterLayer.on('loading', showLoadingIndicator);
-          rasterLayer.on('remove', hideLoadingIndicator);
           let rasterPreview: HTMLCanvasElement | null = null;
-          let previewFallbackTimer: ReturnType<typeof setTimeout> | undefined;
           const clearRasterPreview = () => {
             if (!rasterPreview) return;
             const preview = rasterPreview;
@@ -314,6 +392,12 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             preview.classList.add('is-ready');
             setTimeout(() => preview.remove(), 260);
           };
+          rasterLayer.on('remove', () => {
+            hideLoadingIndicator();
+            clearRasterPreview();
+            rasterGeneration += 1;
+            discardQueuedRasterReads();
+          });
           const preserveVisibleRaster = () => {
             if (rasterPreview || !element.current || !currentState.current.showOrtho) return;
             const container = element.current;
@@ -340,20 +424,27 @@ export default function MapView({ ortho, basemap, showOrtho, showBuildings, show
             });
             container.appendChild(preview);
             rasterPreview = preview;
-            clearTimeout(previewFallbackTimer);
-            previewFallbackTimer = setTimeout(clearRasterPreview, 20000);
           };
-          let redrawTimer: ReturnType<typeof setTimeout> | undefined;
-          map.on('zoomstart', preserveVisibleRaster);
+          map.on('zoomstart', () => {
+            if (!currentState.current.showOrtho) return;
+            preserveVisibleRaster();
+            showLoadingIndicator();
+            rasterPaused = true;
+            rasterGeneration += 1;
+            clearTimeout(resumeRasterTimer);
+            discardQueuedRasterReads();
+          });
           map.on('zoomend', () => {
-            clearTimeout(redrawTimer);
-            redrawTimer = setTimeout(() => {
-              if (!disposed && currentState.current.showOrtho) rasterLayer.redraw();
-            }, 180);
+            if (!currentState.current.showOrtho) return;
+            clearTimeout(resumeRasterTimer);
+            resumeRasterTimer = setTimeout(() => {
+              rasterPaused = false;
+              processRasterQueue();
+            }, 350);
           });
           rasterLayer.on('load', () => {
+            if (rasterPaused) return;
             hideLoadingIndicator();
-            clearTimeout(previewFallbackTimer);
             clearRasterPreview();
           });
           setOverlay('ortho', rasterLayer);
